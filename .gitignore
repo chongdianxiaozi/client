@@ -2,6 +2,7 @@
 .recommenders/
 RemoteSystemsTempFiles/
 /pagehelper/
+/fastdfs_client/
 .settings/
 target/
 *.classpath

@@ -15,10 +15,12 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
 
+import cn.e3mall.cart.service.CartService;
 import cn.e3mall.common.utils.CookieUtils;
 import cn.e3mall.common.utils.E3Result;
 import cn.e3mall.common.utils.JsonUtils;
 import cn.e3mall.pojo.TbItem;
+import cn.e3mall.pojo.TbUser;
 import cn.e3mall.service.ItemService;
 
 /**
@@ -34,10 +36,19 @@ public class CartController {
 	private ItemService itemService;
 	@Value("${COOKIE_CART_EXPIRE}")
 	private Integer COOKIE_CART_EXPIRE;
+	@Autowired
+	private CartService cartService;
 	
 	@RequestMapping("/cart/add/{itemId}")
 	public String addCart(@PathVariable Long itemId, @RequestParam(defaultValue="1") Integer num,
 			HttpServletRequest request, HttpServletResponse response) {
+		// 判断用户是否登陆
+		TbUser tbUser = (TbUser) request.getAttribute("user");
+		if(null != tbUser) {
+			// 写入redis
+			cartService.addCart(tbUser.getId(), itemId, num);
+			return "cartSuccess"; 
+		}
 		/**
 		 * 1.从cookie中取出购物车列表
 		 * 2.判断商品在商品列表中是否存在
@@ -80,8 +91,17 @@ public class CartController {
 	}
 	
 	@RequestMapping("/cart/cart")
-	public String showCartList(HttpServletRequest request) {
+	public String showCartList(HttpServletRequest request, HttpServletResponse response) {
 		List<TbItem> cartList = getCartListFromCookie(request);
+		// 判断用户是否登陆
+		TbUser tbUser = (TbUser) request.getAttribute("user");
+		if(null != tbUser) {
+			cartService.mergeCart(tbUser.getId(), cartList);
+			
+			CookieUtils.deleteCookie(request, response, "cart");
+			
+			cartList = cartService.getCartList(tbUser.getId());
+		}
 		request.setAttribute("cartList", cartList);
 		return "cart";
 	}
@@ -90,6 +110,12 @@ public class CartController {
 	@ResponseBody
 	public E3Result updateCartNum(@PathVariable Long itemId, @PathVariable Integer num,
 			HttpServletRequest request, HttpServletResponse response) {
+		// 判断用户是否登陆
+		TbUser tbUser = (TbUser) request.getAttribute("user");
+		if(null != tbUser) {
+			cartService.updateCartNum(tbUser.getId(), itemId, num);
+			return E3Result.ok();
+		}
 		/**
 		 * 1.从cookie中取出购物车列表
 		 * 2.遍历商品列表找到对应商品
@@ -110,6 +136,12 @@ public class CartController {
 	
 	@RequestMapping("/cart/delete/{itemId}")
 	public String deleteCartItem(@PathVariable Long itemId, HttpServletRequest request, HttpServletResponse response) {
+		// 判断用户是否登陆
+		TbUser tbUser = (TbUser) request.getAttribute("user");
+		if(null != tbUser) {
+			cartService.deleteCartItem(tbUser.getId(), itemId);
+			return "redirect:/cart/cart.html";
+		}
 		List<TbItem> list = getCartListFromCookie(request);
 		for (TbItem tbItem : list) {
 			if(tbItem.getId().longValue() == itemId) {
